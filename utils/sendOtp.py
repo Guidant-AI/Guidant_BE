@@ -21,13 +21,3 @@ def send_otp_email(email: str, otp: str) -> dict:
             return {"status": "failure", "message": response.text}
     except Exception as e:
         return {"status": "failure", "message": str(e)}
-
-# Function to generate OTP
-def generate_otp(secret: str) -> str:
-    totp = pyotp.TOTP(secret)
-    return totp.now()
-
-def validate_otp(otp_secret: str, otp: str) -> bool:
-    totp = pyotp.TOTP(otp_secret)
-    print(f"Validating OTP: {otp}, Generated OTP: {totp.now()}, Secret: {otp_secret}")
-    return totp.verify(otp)

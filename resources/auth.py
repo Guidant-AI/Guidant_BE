@@ -3,13 +3,15 @@ from pymongo import MongoClient
 from models.user import User
 from passlib.hash import bcrypt
 from pydantic import BaseModel
-from utils.sendOtp import generate_otp, validate_otp,send_otp_email
+from utils.sendOtp import send_otp_email
 import pyotp
+from fastapi.responses import JSONResponse
 from utils.jwtHandler import create_access_token, decode_access_token
+import random
 
-client = MongoClient("mongodb://admin:alwen123@127.0.0.1:27017/?authSource=admin")
-db = client["app"]
-user_collection = db["users"]
+client = MongoClient("mongodb+srv://Arvind:Arvind@guidantai.dptv6.mongodb.net/")
+db = client["Guidant"]
+user_collection = db["User_details"]
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -53,70 +55,65 @@ async def signup(user: User):
 async def login(login_request: LoginRequest):
     response = {"status": 200, "message": "success", "data": {}, "error": ""}
     try:
+        # Check if the user exists in the database
         user = user_collection.find_one({"email": login_request.email})
         if not user:
             response.update({"status": 404, "message": "failure", "error": "User not found"})
-            return response
-        
+            return JSONResponse(content=response, status_code=404)
+
         if not verify_password(login_request.password, user["password"]):
             response.update({"status": 401, "message": "failure", "error": "Invalid password"})
-            return response
-        
-        otp_secret = user.get("otp_secret")
-        print(otp_secret)
-        if not otp_secret:
-            response.update({"status": 400, "message": "failure", "error": "OTP not set"})
-            return response
+            return JSONResponse(content=response, status_code=401)
 
-        if not validate_otp(otp_secret, login_request.otp):
+        otp_record = db["otp_collection"].find_one({"email": login_request.email})
+        if not otp_record:
+            response.update({"status": 400, "message": "failure", "error": "OTP not generated or expired"})
+            return JSONResponse(content=response, status_code=400)
+
+        if str(otp_record["otp"]) != login_request.otp:
             response.update({"status": 401, "message": "failure", "error": "Invalid OTP"})
-            return response
-        
+            return JSONResponse(content=response, status_code=401)
+
         token = create_access_token({"email": login_request.email})
-        user_collection.update_one({"email": login_request.email}, {"$unset": {"otp": ""}})
-        
+
+        db["otp_collection"].delete_one({"email": login_request.email})
+
         response["data"] = {"message": "Login successful", "token": token}
     except Exception as e:
         response.update({"status": 500, "message": "failure", "error": str(e)})
-    return response
+        return JSONResponse(content=response, status_code=500)
 
-
-
+    return JSONResponse(content=response, status_code=200)
 
 @router.post("/send-otp")
 async def send_otp(request: SendOtpRequest):
-    response = {"status": 200, "message": "success", "data": [], "error": ""}
+    response = {"status": 200, "message": "success", "data": {}, "error": ""}
     try:
         user = user_collection.find_one({"email": request.email})
         if not user:
             response.update({"status": 404, "message": "failure", "error": "User not found"})
-            return response
-        
-        # Verify the password
-        if not verify_password(request.password, user["password"]):
-            response.update({"status": 401, "message": "failure", "error": "Invalid password"})
-            return response
-        
-        # Generate OTP secret if not exists
-        otp_secret = user.get("otp_secret")
-        if not otp_secret:
-            otp_secret = pyotp.random_base32()
-            user_collection.update_one({"email": request.email}, {"$set": {"otp_secret": otp_secret}})
-        
-        # Generate OTP and update in database
-        otp = generate_otp(otp_secret)
-        user_collection.update_one({"email": request.email}, {"$set": {"otp": otp}})
-        
-        # Send OTP to the email
-        email_response = send_otp_email(request.email, otp)
-        if email_response["status"] == "failure":
-            response.update({"status": 500, "message": "failure", "error": email_response["message"]})
-            return response
-        
-        response["data"] = {"message": "OTP sent to email", "otp": otp}
+            return JSONResponse(content=response, status_code=404)
+
+        # Generate a random 6-digit OTP
+        otp= random.randint(100000, 999999)
+        # Update or insert the OTP into the database
+        existing_otp = db["otp_collection"].find_one({"email": request.email})
+        if existing_otp:
+            db["otp_collection"].update_one({"email": request.email}, {"$set": {"otp": otp}})
+        else:
+            db["otp_collection"].insert_one({"email": request.email, "otp": otp})
+
+        # Send the OTP to the user
+        message = f"Your OTP for login is {otp}. Please use it within 5 minutes."
+        send_otp_email(request.email, message)
+
+        # Return success response with the OTP (for testing purposes, remove in production)
+        response["data"] = {"message": "OTP sent successfully", "otp": otp}
     except Exception as e:
         response.update({"status": 500, "message": "failure", "error": str(e)})
-    return response
+        return JSONResponse(content=response, status_code=500)
+
+    return JSONResponse(content=response)
 
 
 

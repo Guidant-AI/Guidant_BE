@@ -1,21 +1,28 @@
+import os
 import jwt
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 
-SECRET_KEY = "0e9df952cc068a7f870261bf12c914addfba01adb4a2b97d352ec71fac825f5d05cbfd6f689678839a244b16b823649e93bee0ee48aebcbc930039703eebba14"  # Replace with a secure secret key
+# Secret key retrieval
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "default_secure_key")
 
-def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=30)):
+# Function to create a JWT
+def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=30)) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + expires_delta
-    to_encode.update({"exp": expire})
-    token = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
-    return token
+    now = datetime.utcnow()
+    expire = now + expires_delta
+    to_encode.update({
+        "exp": expire,
+        "iat": now,
+        "sub": str(data.get("email"))
+    })
+    return jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
 
-def decode_access_token(token: str):
+# Function to decode a JWT
+def decode_access_token(token: str) -> dict:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
+        raise HTTPException(status_code=401, detail="The token has expired, please log in again.")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="The token is invalid, authentication failed.")
