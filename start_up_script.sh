@@ -27,7 +27,7 @@ pip install uvicorn
 
 # Start the FastAPI application with PM2
 echo "Starting the FastAPI application with PM2..."
-pm2 start "uvicorn main:app --host 0.0.0.0 --port 8000" --name "fastapi-app" --interpreter python3
+pm2 start "uvicorn main:app --host 0.0.0.0 --port 8000"
 
 # Save the PM2 process list
 echo "Saving PM2 process list..."
