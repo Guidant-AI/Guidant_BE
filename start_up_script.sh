@@ -21,11 +21,13 @@ echo "Installing Python dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Ensure uvicorn is installed in the virtual environment
+echo "Ensuring uvicorn is installed..."
+pip install uvicorn
+
 # Start the FastAPI application with PM2
 echo "Starting the FastAPI application with PM2..."
-# pm2 start uvicorn --name "fastapi-app" -- main:app --host 0.0.0.0 --port 8000
 pm2 start "uvicorn main:app --host 0.0.0.0 --port 8000" --name "fastapi-app" --interpreter python3
-
 
 # Save the PM2 process list
 echo "Saving PM2 process list..."
